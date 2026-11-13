@@ -1,0 +1,12 @@
+/dist/
+/build/
+**/node_modules/
+*.asar
+*.asar.unpacked/
+*.tar
+*.tar.gz
+*.tgz
+*.rpm
+*.log
+*.bak
+*~

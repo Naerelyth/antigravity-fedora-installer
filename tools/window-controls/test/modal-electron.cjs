@@ -1,0 +1,41 @@
+"use strict";
+const assert = require("node:assert/strict");
+const { app, BrowserWindow, ipcMain } = require("electron");
+app.setPath("userData", process.env.WINDOW_CONTROLS_TEST_PROFILE);
+app.on("window-all-closed", () => {});
+const calls = [];
+ipcMain.handle("window:set-title-bar-overlay", (_event, options) => { calls.push(options); });
+process.on("uncaughtException", error => { console.error(error); app.exit(1); });
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+app.whenReady().then(async () => {
+    const win = new BrowserWindow({ show: true, title: "Antigravity modal regression test", webPreferences: {
+        preload: process.env.MODAL_TEST_PRELOAD, contextIsolation: true, sandbox: true, backgroundThrottling: false,
+    } });
+    await win.loadURL("data:text/html,<html><body style='margin:0;background:white'><div id='root'></div></body></html>");
+    const run = code => win.webContents.executeJavaScript(code);
+    await run("window.electronNative.setTitleBarOverlay({color:'#ffffff',symbolColor:'#ffffff'})");
+    assert.equal(calls.at(-1).symbolColor, "rgb(255, 255, 255)");
+    const add = (id, extra = "") => run(`{const e=document.createElement('div');e.id=${JSON.stringify(id)};e.style='position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,0.3);${extra}';document.body.append(e);}`);
+    await add("mask"); await delay(550);
+    const dim = calls.at(-1).symbolColor.match(/\d+/g).map(Number);
+    assert.ok(dim[0] >= 178 && dim[0] <= 179, JSON.stringify(calls));
+    await add("nested"); await delay(550);
+    assert.ok(Number(calls.at(-1).symbolColor.match(/\d+/)[0]) < dim[0]);
+    await run("document.querySelector('#nested').remove();document.querySelector('#mask').remove()"); await delay(550);
+    assert.equal(calls.at(-1).symbolColor, "rgb(255, 255, 255)");
+    await add("mouse-transparent", "pointer-events:none"); await delay(550);
+    assert.ok(Number(calls.at(-1).symbolColor.match(/\d+/)[0]) < 180);
+    await run("document.querySelector('#mouse-transparent').remove()"); await delay(550);
+    assert.equal(calls.at(-1).symbolColor, "rgb(255, 255, 255)");
+    await add("partial", "top:100px"); await delay(550);
+    assert.equal(calls.at(-1).symbolColor, "rgb(255, 255, 255)");
+    await run("document.querySelector('#partial').remove();window.electronNative.setTitleBarOverlay({color:'#281646',symbolColor:'#281646'})");
+    await add("custom-mask"); await delay(550);
+    assert.notEqual(calls.at(-1).symbolColor, "rgb(40, 22, 70)");
+    await run("document.querySelector('#custom-mask').remove()"); await delay(550);
+    assert.equal(calls.at(-1).symbolColor, "rgb(40, 22, 70)");
+    assert.ok(calls.every(options => options.color === "#00000000"));
+    win.destroy();
+    console.log("PASS: actual sandboxed preload tracks backdrop open/close, nested masks, partial masks and custom theme restoration");
+    app.exit(0);
+}).catch(error => { console.error(error); app.exit(1); });

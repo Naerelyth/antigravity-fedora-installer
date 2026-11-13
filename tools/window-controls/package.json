@@ -1,0 +1,9 @@
+{
+  "name": "antigravity-window-controls-refactor",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Fail-closed ASAR refactor for Antigravity's Electron window controls overlay",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

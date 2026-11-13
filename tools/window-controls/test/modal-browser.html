@@ -1,0 +1,104 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+body { margin: 0; background: white; }
+.mask { position: fixed; inset: 0; z-index: 5000; background: rgba(0, 0, 0, .5); }
+</style></head><body><pre id="result">RUNNING</pre>
+<script src="../payload/modalThemeSync.js"></script>
+<script src="../../settings-shadow/payload.js"></script>
+<script>
+// Chrome's virtual clock does not reliably advance compositor frames. Use a
+// deterministic frame scheduler here; DOM, layout and CSS remain real browser APIs.
+window.requestAnimationFrame = callback => setTimeout(() => callback(performance.now()), 16);
+window.cancelAnimationFrame = clearTimeout;
+const calls = [];
+const update = installModalThemeSync(options => calls.push(options));
+const delay = () => new Promise(resolve => setTimeout(resolve, 550));
+const assert = (ok, message) => { if (!ok) throw new Error(message + ": " + JSON.stringify(calls.at(-1))); };
+const rgb = () => calls.at(-1).symbolColor.match(/\d+/g).map(Number);
+const closeTo = expected => rgb().every((value, index) => Math.abs(value - expected[index]) <= 1);
+function mask(extra = "", parent = document.body) {
+    const element = document.createElement("div");
+    element.className = "mask";
+    element.style.cssText = extra;
+    parent.append(element);
+    return element;
+}
+(async () => {
+    await update({ color: "#ffffff", symbolColor: "#ffffff" });
+    let overlay = mask("pointer-events:none"); await delay();
+    assert(closeTo([128,128,128]), "mouse-transparent overlay must dim");
+    overlay.remove(); await delay(); assert(closeTo([255,255,255]), "removal must restore");
+    overlay = mask("pointer-events:none;top:100px"); await delay();
+    assert(closeTo([255,255,255]), "partial overlay must not dim titlebar");
+    overlay.style.top = "0"; await delay(); assert(closeTo([128,128,128]), "geometry changes must update");
+    overlay.hidden = true; await delay(); assert(closeTo([255,255,255]), "hidden overlay must not dim");
+    overlay.remove();
+    const blue = mask("pointer-events:none;z-index:20;background:rgba(0,0,255,.5)");
+    const red = mask("z-index:10;background:rgba(255,0,0,.5)"); await delay();
+    assert(closeTo([128,64,192]), "z-index must override DOM insertion order");
+    blue.remove(); red.remove();
+    const higher = document.createElement("div"); higher.style.cssText = "position:relative;z-index:200"; document.body.append(higher);
+    const lower = document.createElement("div"); lower.style.cssText = "position:relative;z-index:100"; document.body.append(lower);
+    mask("pointer-events:none;z-index:1;background:rgba(0,0,255,.5)", higher);
+    mask("z-index:9999;background:rgba(255,0,0,.5)", lower); await delay();
+    assert(closeTo([128,64,192]), "nested contexts must precede child z-index");
+    higher.remove(); lower.remove(); await delay();
+    await update({ color: "#281646", symbolColor: "#281646" });
+    overlay = mask("pointer-events:none"); await delay(); assert(closeTo([20,11,35]), "custom palette dimming");
+    overlay.remove(); await delay(); assert(closeTo([40,22,70]), "custom palette restoration");
+    await update({ color: "#ffffff", symbolColor: "#ffffff" });
+    const late = document.createElement("div"); late.className = "late-mask"; document.body.append(late); await delay();
+    const stylesheet = document.createElement("style");
+    stylesheet.textContent = ".late-mask { position:fixed;inset:0;z-index:5000;pointer-events:none;background:rgba(0,0,0,.5); }";
+    document.head.append(stylesheet); await delay();
+    assert(closeTo([128,128,128]), "inserted stylesheet must refresh existing candidates");
+    stylesheet.remove(); await delay(); assert(closeTo([255,255,255]), "removed stylesheet must refresh existing candidates");
+    const link = document.createElement("link"); link.rel = "stylesheet";
+    link.href = "data:text/css," + encodeURIComponent(stylesheet.textContent);
+    document.head.append(link); await delay();
+    assert(closeTo([128,128,128]), "loaded stylesheet must refresh existing candidates");
+    link.remove(); late.remove(); await delay(); assert(closeTo([255,255,255]), "stylesheet cleanup must restore");
+    // Do not advance a frame: theme changes must see same-task DOM mutations.
+    overlay = mask("pointer-events:none");
+    update({ color: "#c8c8c8", symbolColor: "#c8c8c8" });
+    assert(closeTo([100,100,100]), "same-task added backdrop must affect first theme message");
+    overlay.remove();
+    update({ color: "#ffffff", symbolColor: "#ffffff" });
+    assert(closeTo([255,255,255]), "same-task removed backdrop must restore immediately");
+    overlay = mask("pointer-events:none");
+    await Promise.resolve();
+    assert(closeTo([128,128,128]), "observer must send before the next animation frame");
+    overlay.remove(); await delay();
+    const child = document.createElement("div"); document.body.append(child); await delay();
+    const originalQuery = Element.prototype.querySelectorAll;
+    let bodyScans = 0, childScans = 0;
+    Element.prototype.querySelectorAll = function(selector) {
+        if (selector === "*") { if (this === document.body) bodyScans++; if (this === child) childScans++; }
+        return originalQuery.call(this, selector);
+    };
+    try {
+        document.body.classList.toggle("theme-light");
+        child.classList.toggle("theme-child");
+        update({ color: "#eeeeee", symbolColor: "#111111" });
+        assert(bodyScans === 1 && childScans === 0, "overlapping theme roots must scan only once");
+    } finally { Element.prototype.querySelectorAll = originalQuery; child.remove(); }
+    const titlebar = document.createElement("div");
+    titlebar.dataset.testid = "title-menu-bar";
+    titlebar.style.cssText = "height:35px;background:color-mix(in srgb, #fff 2.5%, #24273a)";
+    document.body.append(titlebar);
+    overlay = mask("background:rgba(0,0,0,.3)");
+    update({ color: "#323445", symbolColor: "#cad3f5" });
+    assert(calls.at(-1).color === "#00000000", "actual titlebar color must override stale palette under settings backdrop");
+    titlebar.style.background = "#faf4e5";
+    await Promise.resolve();
+    assert(calls.at(-1).color === "#00000000", "CSS theme changes must update without waiting for upstream palette notification");
+    overlay.remove(); titlebar.remove();
+    const panel = document.createElement("div");
+    panel.className = "settings-modal-container";
+    panel.style.boxShadow = "0 25px 50px -12px rgba(0,0,0,.25)";
+    document.body.append(panel);
+    assert(getComputedStyle(panel).boxShadow === "none", "independent settings patch removes only panel shadow");
+    panel.remove();
+    document.getElementById("result").textContent = "PASS";
+})().catch(error => { document.getElementById("result").textContent = "FAIL: " + error.stack; });
+</script></body></html>

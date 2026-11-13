@@ -1,0 +1,14 @@
+[Desktop Entry]
+Name=Antigravity
+Comment=Antigravity by Google
+GenericName=AI Assistant
+Exec=antigravity %U
+Icon=antigravity
+Type=Application
+Categories=Utility;Development;
+MimeType=x-scheme-handler/antigravity;
+StartupNotify=true
+StartupWMClass=Antigravity
+Hidden=false
+NoDisplay=false
+Terminal=false

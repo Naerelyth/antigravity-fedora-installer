@@ -1,0 +1,13 @@
+{
+  "name": "antigravity-fedora",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fedora RPM packaging, icon replacement and window controls refactor for Antigravity releases",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "bash scripts/test.sh",
+    "test:unit": "node --test tools/window-controls/test/windowControls.test.js",
+    "test:browser": "node scripts/test-modal-browser.js",
+    "build": "bash scripts/build-rpm.sh"
+  }
+}

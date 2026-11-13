@@ -1,0 +1,19 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Antigravity IDE
+Comment=Experience liftoff (IDE)
+GenericName=Text Editor
+Exec=/usr/bin/antigravity-ide --ozone-platform-hint=wayland --enable-features=WaylandWindowDecorations,CanvasOopRasterization --enable-gpu-rasterization --enable-zero-copy %F
+Icon=antigravity-ide
+Terminal=false
+Categories=Development;IDE;TextEditor;
+MimeType=application/x-antigravity-workspace;
+StartupNotify=true
+StartupWMClass=antigravity-ide
+Actions=new-empty-window;
+
+[Desktop Action new-empty-window]
+Name=New Empty Window
+Exec=/usr/bin/antigravity-ide --ozone-platform-hint=wayland --enable-features=WaylandWindowDecorations,CanvasOopRasterization --enable-gpu-rasterization --enable-zero-copy --new-window %F
+Icon=antigravity-ide
